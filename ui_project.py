@@ -164,7 +164,7 @@ class ProjectWindow(QWidget):
         self.items_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
         self.items_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.items_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
-        self.items_table.setColumnWidth(2, 220)
+        self.items_table.setColumnWidth(2, 100)
         self.items_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.items_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.items_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -480,6 +480,7 @@ class ProjectWindow(QWidget):
 
     def block_signals_ui(self, b):
         self.result_edit.blockSignals(b)
+
         self.suggestion_edit.blockSignals(b)
         self.status_combo.blockSignals(b)
         self.risk_combo.blockSignals(b)
