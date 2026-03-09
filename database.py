@@ -373,6 +373,34 @@ class DBManager:
             (Assessment.asset_id == asset_id)
         )
 
+    def update_project_asset(self, project_id, asset_id, name, model, ip):
+        project = self.projects_table.get(doc_id=project_id)
+        if not project:
+            return False, "项目不存在"
+
+        assets = project.get('assets', [])
+        target_asset = None
+        for asset in assets:
+            if asset.get('id') == asset_id:
+                asset['name'] = name
+                asset['model'] = model
+                asset['ip'] = ip
+                target_asset = asset
+                break
+
+        if target_asset is None:
+            return False, "资产不存在"
+
+        self.projects_table.update({'assets': assets}, doc_ids=[project_id])
+
+        Assessment = Query()
+        self.assessments_table.update(
+            {'asset_name': name},
+            (Assessment.project_id == project_id) &
+            (Assessment.asset_id == asset_id)
+        )
+        return True, "资产更新成功"
+
     # === 关键：查询测评项 ===
     def get_assessments(self, project_id, category, asset_id=None):
         """
