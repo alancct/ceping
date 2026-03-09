@@ -166,15 +166,17 @@ class DBManager:
         Template = Query()
         return self.templates_table.search(Template.type == 'standard')
 
-    def get_asset_templates(self):
-        """只获取资产模板 (type='asset')，用于添加资产"""
+    def get_asset_templates(self, level=None):
+        """只获取资产模板 (type='asset')，用于添加资产/模板管理筛选"""
         Template = Query()
+        if level and level != "全部":
+            return self.templates_table.search((Template.type == 'asset') & (Template.level == level))
         return self.templates_table.search(Template.type == 'asset')
 
-    def create_asset_template(self, name):
+    def create_asset_template(self, name, level="通用"):
         template_data = {
             "name": name,
-            "level": "通用",
+            "level": level,
             "type": "asset",
             "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "items": []

@@ -278,6 +278,15 @@ class TemplateManagerDialog(QDialog):
 
         left_layout = QVBoxLayout()
         left_layout.addWidget(QLabel("资产模板列表:"))
+
+        asset_filter_layout = QHBoxLayout()
+        asset_filter_layout.addWidget(QLabel("模板分类:"))
+        self.asset_level_combo = QComboBox()
+        self.asset_level_combo.addItems(["全部", "二级", "三级"])
+        self.asset_level_combo.currentIndexChanged.connect(self.load_asset_templates)
+        asset_filter_layout.addWidget(self.asset_level_combo, 1)
+        left_layout.addLayout(asset_filter_layout)
+
         self.asset_list = QListWidget()
         self.asset_list.itemClicked.connect(lambda item: self.on_template_selected(item, True))
 
@@ -468,17 +477,23 @@ class TemplateManagerDialog(QDialog):
 
     def load_asset_templates(self):
         self.asset_list.clear()
-        templates = db.get_asset_templates()
+        selected_level = self.asset_level_combo.currentText() if hasattr(self, 'asset_level_combo') else "全部"
+        templates = db.get_asset_templates(selected_level)
         for t in templates:
             doc_id = getattr(t, 'doc_id', t.get('doc_id'))
-            item = QListWidgetItem(t.get('name', '未命名'))
+            level = t.get('level', '通用')
+            item = QListWidgetItem(f"[{level}] {t.get('name', '未命名')}")
             item.setData(Qt.ItemDataRole.UserRole, doc_id)
             self.asset_list.addItem(item)
 
     def create_asset_template(self):
-        name, ok = QInputDialog.getText(self, "新建", "请输入资产模板名称 (如: Windows Server 2019):")
+        level, ok = QInputDialog.getItem(self, "选择分类", "请选择模板分类:", ["二级", "三级"], 0, False)
+        if not ok:
+            return
+
+        name, ok = QInputDialog.getText(self, "新建", f"请输入{level}资产模板名称 (如: Windows Server 2019):")
         if ok and name:
-            db.create_asset_template(name)
+            db.create_asset_template(name, level)
             self.load_asset_templates()
 
     def delete_asset_template(self):
