@@ -308,6 +308,11 @@ class DBManager:
         asset_tpl = self.templates_table.get(doc_id=template_id)
         if not asset_tpl: return False, "选定的资产模板不存在"
 
+        project_level = project.get('level')
+        template_level = asset_tpl.get('level')
+        if project_level and template_level and project_level != template_level:
+            return False, f"资产模板等级不匹配：项目为{project_level}，模板为{template_level}"
+
         # 1. 更新项目中的资产列表
         new_asset_id = str(uuid.uuid4())
         new_asset = {
