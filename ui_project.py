@@ -10,7 +10,7 @@ from report_generator import ReportGenerator
 
 
 class AddAssetDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, project_level=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("添加测评资产")
         self.resize(400, 300)
@@ -20,9 +20,10 @@ class AddAssetDialog(QDialog):
         self.ip_input = QLineEdit()
         self.template_combo = QComboBox()
 
-        self.templates = db.get_asset_templates()
+        self.templates = db.get_asset_templates(project_level)
         if not self.templates:
-            self.template_combo.addItem("无可用模板")
+            level_text = project_level or "当前"
+            self.template_combo.addItem(f"无可用{level_text}资产模板")
             self.template_combo.setEnabled(False)
         else:
             for t in self.templates:
@@ -50,6 +51,8 @@ class ProjectWindow(QWidget):
     def __init__(self, project_id, project_name):
         super().__init__()
         self.project_id = project_id
+        project = db.get_project_data(project_id) or {}
+        self.project_level = project.get('level')
         self.setWindowTitle(f"等保测评工具 - {project_name}")
         self.resize(1300, 850)
 
@@ -359,12 +362,15 @@ class ProjectWindow(QWidget):
         self.refresh_items_table()
 
     def add_asset(self):
-        dialog = AddAssetDialog(self)
+        dialog = AddAssetDialog(self.project_level, self)
         if dialog.exec():
             name, model, ip, tpl_id = dialog.get_data()
             if not name or not tpl_id: return
-            if db.add_asset_to_project(self.project_id, name, model, ip, tpl_id):
+            success, msg = db.add_asset_to_project(self.project_id, name, model, ip, tpl_id)
+            if success:
                 self.load_assets()
+            else:
+                QMessageBox.warning(self, "添加失败", msg)
 
     def delete_asset(self):
         if self.asset_list_combo.count() == 0: return
