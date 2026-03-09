@@ -49,7 +49,8 @@ class CreateProjectDialog(QDialog):
         self.template_combo = QComboBox()
 
         try:
-            self.templates = db.get_all_templates()
+            # 新建项目仅允许选择「标准模板」（二级/三级），排除资产专用模板
+            self.templates = db.get_standard_templates()
         except Exception as e:
             print(f"获取模板失败: {e}")
             self.templates = []
