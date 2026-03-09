@@ -137,7 +137,7 @@ class KBEditorDialog(QDialog):
             QMessageBox.critical(self, "保存失败", f"数据库错误: {str(e)}")
 
     def load_kb_data(self):
-        entry = db.get_kb_entry(self.item_id)
+        entry = db.get_kb_entry(self.item_id, template_id=self.tpl_id)
         self.list_results.clear()
         self.list_suggestions.clear()
         self.list_results.addItems(entry.get('results', []))
@@ -146,14 +146,14 @@ class KBEditorDialog(QDialog):
     def add_kb(self, kb_type):
         text, ok = QInputDialog.getMultiLineText(self, "添加知识库", "请输入内容:")
         if ok and text:
-            db.add_kb_entry(self.item_id, kb_type, text)
+            db.add_kb_entry(self.item_id, kb_type, text, template_id=self.tpl_id)
             self.load_kb_data()
 
     def del_kb(self, kb_type):
         target_list = self.list_results if kb_type == 'results' else self.list_suggestions
         item = target_list.currentItem()
         if item:
-            db.remove_kb_entry(self.item_id, kb_type, item.text())
+            db.remove_kb_entry(self.item_id, kb_type, item.text(), template_id=self.tpl_id)
             self.load_kb_data()
 
 

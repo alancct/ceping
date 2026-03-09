@@ -276,6 +276,7 @@ class DBManager:
 
                     # 复制模板基础信息
                     "tpl_item_id": item.get('id'),
+                    "tpl_template_id": template_id,  # << 新增：记录模板 doc_id（用于 KB 定位）
                     "point": item.get('point', ''),
                     "requirement": item.get('requirement', ''),
                     "method": item.get('method', ''),
@@ -287,7 +288,8 @@ class DBManager:
                     "suggestion": "",
 
                     # 排序用
-                    "sort_index": idx
+                    "sort_index": idx,
+
                 }
                 batch_assessments.append(assessment)
 
@@ -330,6 +332,7 @@ class DBManager:
 
                 # 复制模板基础信息
                 "tpl_item_id": item.get('id'),
+                "tpl_template_id": template_id,  # << 新增
                 "point": item.get('point', ''),
                 "requirement": item.get('requirement', ''),
                 "method": item.get('method', ''),
@@ -429,30 +432,72 @@ class DBManager:
         self.projects_table.update({'name': new_name}, doc_ids=[doc_id])
 
     # 知识库
-    def get_kb_entry(self, item_id):
+    def get_kb_entry(self, item_id, template_id=None):
         KB = Query()
-        res = self.kb_table.search(KB.item_id == item_id)
-        if res: return res[0]
-        return {"item_id": item_id, "results": [], "suggestions": []}
+        # 如果传了 template_id，优先查 template-scoped 条目
+        if template_id is not None:
+            res = self.kb_table.search((KB.item_id == item_id) & (KB.template_id == template_id))
+            if res:
+                return res[0]
+        # 回退：查全局 item_id（向后兼容之前的数据）
+        res = self.kb_table.search(
+            (KB.item_id == item_id) &
+            (KB.template_id == template_id)
+        )
+        if res:
+            return res[0]
+        # 若未找到，返回空结构（包含 template_id 以便 UI 判断）
+        return {"item_id": item_id, "template_id": template_id, "results": [], "suggestions": []}
 
-    def add_kb_entry(self, item_id, field_type, content):
-        if not content.strip(): return
+    def add_kb_entry(self, item_id, field_type, content, template_id=None):
+        if not content or not content.strip():
+            return
         KB = Query()
-        res = self.kb_table.search(KB.item_id == item_id)
+        # 先尝试用 template-scoped 条目
+        if template_id is not None:
+            res = self.kb_table.search((KB.item_id == item_id) & (KB.template_id == template_id))
+            if res:
+                doc_id = res[0].doc_id
+                current_list = res[0].get(field_type, [])
+                if content not in current_list:
+                    current_list.append(content)
+                    self.kb_table.update({field_type: current_list}, doc_ids=[doc_id])
+                return
+        # 再尝试全局 item_id
+        res = self.kb_table.search(
+            (KB.item_id == item_id) &
+            (KB.template_id == template_id)
+        )
         if res:
             doc_id = res[0].doc_id
             current_list = res[0].get(field_type, [])
             if content not in current_list:
                 current_list.append(content)
                 self.kb_table.update({field_type: current_list}, doc_ids=[doc_id])
-        else:
-            new_entry = {"item_id": item_id, "results": [], "suggestions": []}
-            new_entry[field_type] = [content]
-            self.kb_table.insert(new_entry)
+            return
+        # 都没有：插入一个 template-scoped（如果 template_id 给了）或全局条目
+        new_entry = {"template_id": template_id, "item_id": item_id, "results": [], "suggestions": []}
+        if template_id is not None:
+            new_entry["template_id"] = template_id
+        new_entry[field_type] = [content]
+        self.kb_table.insert(new_entry)
 
-    def remove_kb_entry(self, item_id, field_type, content):
+    def remove_kb_entry(self, item_id, field_type, content, template_id=None):
         KB = Query()
-        res = self.kb_table.search(KB.item_id == item_id)
+        if template_id is not None:
+            res = self.kb_table.search((KB.item_id == item_id) & (KB.template_id == template_id))
+            if res:
+                doc_id = res[0].doc_id
+                current_list = res[0].get(field_type, [])
+                if content in current_list:
+                    current_list.remove(content)
+                    self.kb_table.update({field_type: current_list}, doc_ids=[doc_id])
+                return
+        # 回退删除全局条目
+        res = self.kb_table.search(
+            (KB.item_id == item_id) &
+            (KB.template_id == template_id)
+        )
         if res:
             doc_id = res[0].doc_id
             current_list = res[0].get(field_type, [])

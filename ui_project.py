@@ -220,6 +220,7 @@ class ProjectWindow(QWidget):
 
         # 知识库ID
         self.current_item_id = rec.get('tpl_item_id')
+        self.current_item_tpl = rec.get('tpl_template_id')
         self.lbl_id.setText(f"ID: {self.current_item_id}")
 
         self.block_signals_ui(True)
@@ -407,7 +408,7 @@ class ProjectWindow(QWidget):
 
     def load_kb(self, ftype):
         if not self.current_item_id: return
-        data = db.get_kb_entry(self.current_item_id)
+        data = db.get_kb_entry(self.current_item_id, template_id=getattr(self, 'current_item_tpl', None))
         items = data.get(ftype, [])
         self.kb_list.clear()
         if not items:
