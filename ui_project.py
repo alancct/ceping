@@ -161,9 +161,10 @@ class ProjectWindow(QWidget):
         self.items_table.setHorizontalHeaderLabels(["状态", "风险", "控制点", "测评要求", "测评方法"])
         self.items_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.items_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.items_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.items_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
         self.items_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.items_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        self.items_table.setColumnWidth(2, 220)
         self.items_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.items_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.items_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -217,7 +218,12 @@ class ProjectWindow(QWidget):
                 risk_item.setForeground(Qt.GlobalColor.red)
             self.items_table.setItem(row, 1, risk_item)
 
-            self.items_table.setItem(row, 2, QTableWidgetItem(rec.get('point', '')))
+            point_item = QTableWidgetItem(rec.get('point', ''))
+            self.items_table.setItem(row, 2, point_item)
+
+            status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            risk_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            point_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
             req_item = QTableWidgetItem(rec.get('requirement', ''))
             req_item.setToolTip(rec.get('requirement', ''))
