@@ -583,13 +583,17 @@ class TemplateManagerDialog(QDialog):
         self.current_data = tpl.get('items', {})
 
         if not is_asset:
+            previous_cat = self.cat_combo.currentText() if hasattr(self, 'cat_combo') else "全部"
             self.cat_combo.blockSignals(True)
             self.cat_combo.clear()
             from database import STD_CATEGORIES
             cats = ["全部"] + [c for c in STD_CATEGORIES if c != "安全计算环境"]
             self.cat_combo.addItems(cats)
             self.cat_combo.blockSignals(False)
-            self.cat_combo.setCurrentIndex(0)
+
+            # 刷新列表时尽量保留用户当前的分类筛选，避免关闭详情窗口后跳回“全部”。
+            target_cat = previous_cat if previous_cat in cats else "全部"
+            self.cat_combo.setCurrentText(target_cat)
             self.filter_items()
         else:
             self.current_row_map = []
