@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QHBoxLayout, QL
                              QAbstractItemView, QInputDialog, QComboBox, QTabWidget, QLineEdit, QListWidgetItem, QMenu,
                              QFormLayout)
 from PyQt6.QtCore import Qt, QEvent
+from PyQt6.QtGui import QKeySequence
 from database import db
 import traceback
 
@@ -349,7 +350,7 @@ class TemplateManagerDialog(QDialog):
 
     def eventFilter(self, obj, event):
         if isinstance(obj, QTableWidget) and event.type() == QEvent.Type.KeyPress:
-            if event.matches(event.StandardKey.Paste):
+            if event.matches(QKeySequence.StandardKey.Paste):
                 if self.handle_multi_paste(obj):
                     return True
         return super().eventFilter(obj, event)
