@@ -114,8 +114,13 @@ class ProjectWindow(QWidget):
         self.status_combo = QComboBox()
         self.status_combo.addItems(["不适用", "符合", "不符合", "部分符合"])
         self.status_combo.currentIndexChanged.connect(self.save_current_edit)
+        self.risk_combo = QComboBox()
+        self.risk_combo.addItems(["高", "中", "低"])
+        self.risk_combo.currentIndexChanged.connect(self.save_current_edit)
         top_bar.addWidget(QLabel("符合情况:"))
         top_bar.addWidget(self.status_combo)
+        top_bar.addWidget(QLabel("风险等级:"))
+        top_bar.addWidget(self.risk_combo)
         top_bar.addStretch()
         top_bar.addWidget(self.lbl_id)
 
@@ -152,10 +157,13 @@ class ProjectWindow(QWidget):
         self.top_container.setEnabled(False)
 
         self.items_table = QTableWidget()
-        self.items_table.setColumnCount(4)
-        self.items_table.setHorizontalHeaderLabels(["状态", "控制点", "测评要求", "测评方法"])
+        self.items_table.setColumnCount(5)
+        self.items_table.setHorizontalHeaderLabels(["状态", "风险", "控制点", "测评要求", "测评方法"])
+        self.items_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.items_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.items_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.items_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.items_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self.items_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.items_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.items_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -204,15 +212,20 @@ class ProjectWindow(QWidget):
             status_item.setData(Qt.ItemDataRole.UserRole, rec.doc_id)
 
             self.items_table.setItem(row, 0, status_item)
-            self.items_table.setItem(row, 1, QTableWidgetItem(rec.get('point', '')))
+            risk_item = QTableWidgetItem(rec.get('risk_level', '中'))
+            if rec.get('risk_level') == '高':
+                risk_item.setForeground(Qt.GlobalColor.red)
+            self.items_table.setItem(row, 1, risk_item)
+
+            self.items_table.setItem(row, 2, QTableWidgetItem(rec.get('point', '')))
 
             req_item = QTableWidgetItem(rec.get('requirement', ''))
             req_item.setToolTip(rec.get('requirement', ''))
-            self.items_table.setItem(row, 2, req_item)
+            self.items_table.setItem(row, 3, req_item)
 
             method_item = QTableWidgetItem(rec.get('method', ''))
             method_item.setToolTip(rec.get('method', ''))
-            self.items_table.setItem(row, 3, method_item)
+            self.items_table.setItem(row, 4, method_item)
 
     def on_item_selected(self, row, col):
         if row >= len(self.current_records): return
@@ -228,6 +241,7 @@ class ProjectWindow(QWidget):
 
         self.block_signals_ui(True)
         self.status_combo.setCurrentText(rec.get('status', '不适用'))
+        self.risk_combo.setCurrentText(rec.get('risk_level', '中'))
         self.result_edit.setText(rec.get('result', ''))
         self.suggestion_edit.setText(rec.get('suggestion', ''))
         self.block_signals_ui(False)
@@ -239,6 +253,7 @@ class ProjectWindow(QWidget):
 
         new_data = {
             "status": self.status_combo.currentText(),
+            "risk_level": self.risk_combo.currentText(),
             "result": self.result_edit.toPlainText(),
             "suggestion": self.suggestion_edit.toPlainText()
         }
@@ -258,6 +273,14 @@ class ProjectWindow(QWidget):
             else:
                 st_item.setForeground(Qt.GlobalColor.gray)
 
+            risk_item = self.items_table.item(row, 1)
+            if risk_item is not None:
+                risk_item.setText(new_data['risk_level'])
+                if new_data['risk_level'] == '高':
+                    risk_item.setForeground(Qt.GlobalColor.red)
+                else:
+                    risk_item.setForeground(Qt.GlobalColor.gray)
+
             # 同时更新缓存
             self.current_records[row].update(new_data)
 
@@ -272,6 +295,7 @@ class ProjectWindow(QWidget):
                 item = self.current_records[r]
                 data.append({
                     "status": item.get('status'),
+                    "risk_level": item.get('risk_level', '中'),
                     "result": item.get('result'),
                     "suggestion": item.get('suggestion')
                 })
@@ -307,6 +331,14 @@ class ProjectWindow(QWidget):
                 item.setForeground(Qt.GlobalColor.red)
             else:
                 item.setForeground(Qt.GlobalColor.gray)
+
+            risk_item = self.items_table.item(r, 1)
+            if risk_item is not None:
+                risk_item.setText(paste_data.get('risk_level', '中'))
+                if paste_data.get('risk_level') == '高':
+                    risk_item.setForeground(Qt.GlobalColor.red)
+                else:
+                    risk_item.setForeground(Qt.GlobalColor.gray)
 
             # 更新缓存
             rec.update(paste_data)
@@ -435,6 +467,7 @@ class ProjectWindow(QWidget):
         self.block_signals_ui(True)
         self.result_edit.clear()
         self.suggestion_edit.clear()
+        self.risk_combo.setCurrentText("中")
         self.lbl_id.setText("-")
         self.kb_list.clear()
         self.block_signals_ui(False)
@@ -443,3 +476,4 @@ class ProjectWindow(QWidget):
         self.result_edit.blockSignals(b)
         self.suggestion_edit.blockSignals(b)
         self.status_combo.blockSignals(b)
+        self.risk_combo.blockSignals(b)
