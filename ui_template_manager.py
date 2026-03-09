@@ -1,11 +1,11 @@
 import sys
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
+from PyQt6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
                              QPushButton, QLabel, QMessageBox, QFileDialog,
                              QTableWidget, QTableWidgetItem, QHeaderView,
                              QGroupBox, QTextEdit, QSplitter, QWidget,
                              QAbstractItemView, QInputDialog, QComboBox, QTabWidget, QLineEdit, QListWidgetItem, QMenu,
                              QFormLayout)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QEvent
 from database import db
 import traceback
 
@@ -330,7 +330,8 @@ class TemplateManagerDialog(QDialog):
         # EditKeyPressed: 按F2触发编辑
         # AnyKeyPressed: 按任意键打字触发编辑
         # 注意：这里去掉了 DoubleClicked 触发编辑，因为双击我们要留给弹窗
-        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         table.setEditTriggers(QAbstractItemView.EditTrigger.SelectedClicked |
                               QAbstractItemView.EditTrigger.EditKeyPressed |
                               QAbstractItemView.EditTrigger.AnyKeyPressed)
@@ -344,6 +345,72 @@ class TemplateManagerDialog(QDialog):
         # 启用右键菜单
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(self.show_context_menu)
+        table.installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        if isinstance(obj, QTableWidget) and event.type() == QEvent.Type.KeyPress:
+            if event.matches(event.StandardKey.Paste):
+                if self.handle_multi_paste(obj):
+                    return True
+        return super().eventFilter(obj, event)
+
+    def handle_multi_paste(self, table):
+        """支持风险(1列)和控制点(2列)多选批量粘贴"""
+        selected_indexes = table.selectedIndexes()
+        if not selected_indexes:
+            return False
+
+        allowed_cols = {1, 2}
+        if any(index.column() not in allowed_cols for index in selected_indexes):
+            return False
+
+        text = QApplication.clipboard().text().strip()
+        if not text:
+            return False
+
+        # 只在单列多选时处理，避免误覆盖其它列
+        selected_cols = {index.column() for index in selected_indexes}
+        if len(selected_cols) != 1:
+            return False
+
+        target_col = selected_cols.pop()
+        selected_rows = sorted({index.row() for index in selected_indexes})
+
+        values = [line.strip() for line in text.splitlines() if line.strip()]
+        if not values:
+            return False
+
+        # 单值粘贴：应用到所有选中单元格
+        if len(values) == 1:
+            values = values * len(selected_rows)
+
+        if len(values) != len(selected_rows):
+            QMessageBox.warning(
+                self,
+                "粘贴失败",
+                f"选中了 {len(selected_rows)} 行，但粘贴了 {len(values)} 行内容，请保持数量一致。"
+            )
+            return True
+
+        touched_rows = set()
+        self.loading_data = True
+        try:
+            for row, value in zip(selected_rows, values):
+                cell_item = table.item(row, target_col)
+                if not cell_item:
+                    cell_item = QTableWidgetItem()
+                    table.setItem(row, target_col, cell_item)
+                cell_item.setText(value)
+                touched_rows.add(row)
+        finally:
+            self.loading_data = False
+
+        for row in touched_rows:
+            changed_item = table.item(row, target_col)
+            if changed_item:
+                self.on_table_cell_changed(table, changed_item)
+
+        return True
 
     def on_table_cell_changed(self, table, item):
         """表格单元格内容变更时自动保存"""
