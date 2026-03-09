@@ -10,9 +10,10 @@ from report_generator import ReportGenerator
 
 
 class AddAssetDialog(QDialog):
-    def __init__(self, project_level=None, parent=None):
+    def __init__(self, project_level=None, parent=None, asset_data=None, is_edit=False):
         super().__init__(parent)
-        self.setWindowTitle("添加测评资产")
+        self.is_edit = is_edit
+        self.setWindowTitle("编辑测评资产" if is_edit else "添加测评资产")
         self.resize(400, 300)
         self.layout = QFormLayout(self)
         self.name_input = QLineEdit()
@@ -21,18 +22,28 @@ class AddAssetDialog(QDialog):
         self.template_combo = QComboBox()
 
         self.templates = db.get_asset_templates(project_level)
-        if not self.templates:
-            level_text = project_level or "当前"
-            self.template_combo.addItem(f"无可用{level_text}资产模板")
+        if is_edit:
             self.template_combo.setEnabled(False)
+            tpl_name = (asset_data or {}).get('template_name', '未知模板')
+            self.template_combo.addItem(tpl_name, (asset_data or {}).get('template_id'))
         else:
-            for t in self.templates:
-                doc_id = getattr(t, 'doc_id', t.get('doc_id'))
-                self.template_combo.addItem(t.get('name', 'Unknown'), doc_id)
+            if not self.templates:
+                level_text = project_level or "当前"
+                self.template_combo.addItem(f"无可用{level_text}资产模板")
+                self.template_combo.setEnabled(False)
+            else:
+                for t in self.templates:
+                    doc_id = getattr(t, 'doc_id', t.get('doc_id'))
+                    self.template_combo.addItem(t.get('name', 'Unknown'), doc_id)
 
-        self.btn_ok = QPushButton("确认添加")
+        if asset_data:
+            self.name_input.setText(asset_data.get('name', ''))
+            self.model_input.setText(asset_data.get('model', ''))
+            self.ip_input.setText(asset_data.get('ip', ''))
+
+        self.btn_ok = QPushButton("确认保存" if is_edit else "确认添加")
         self.btn_ok.clicked.connect(self.accept)
-        self.btn_ok.setEnabled(len(self.templates) > 0)
+        self.btn_ok.setEnabled(is_edit or len(self.templates) > 0)
 
         self.layout.addRow("资产名称:", self.name_input)
         self.layout.addRow("型号/版本:", self.model_input)
@@ -92,16 +103,23 @@ class ProjectWindow(QWidget):
         self.asset_list_combo.currentIndexChanged.connect(self.on_asset_changed)
         btn_add = QPushButton("添加")
         btn_add.clicked.connect(self.add_asset)
+        btn_edit = QPushButton("编辑")
+        btn_edit.clicked.connect(self.edit_asset)
         btn_del = QPushButton("删除")
         btn_del.setObjectName("dangerBtn")
         btn_del.clicked.connect(self.delete_asset)
         asset_layout.addWidget(QLabel("当前资产:"))
         asset_layout.addWidget(self.asset_list_combo, 1)
         asset_layout.addWidget(btn_add)
+        asset_layout.addWidget(btn_edit)
         asset_layout.addWidget(btn_del)
         self.asset_panel.setLayout(asset_layout)
         self.asset_panel.setVisible(False)
         self.right_layout.addWidget(self.asset_panel)
+
+        self.asset_info_label = QLabel("")
+        self.asset_info_label.setVisible(False)
+        self.right_layout.addWidget(self.asset_info_label)
 
         splitter = QSplitter(Qt.Orientation.Vertical)
 
@@ -386,17 +404,29 @@ class ProjectWindow(QWidget):
         proj = db.get_project_data(self.project_id)
         assets = proj.get('assets', [])
         for a in assets:
-            self.asset_list_combo.addItem(f"{a['name']} ({a['ip']})", a['id'])
+            self.asset_list_combo.addItem(f"{a['name']} ({a['ip']})", a)
         self.asset_list_combo.blockSignals(False)
 
         if assets:
             self.asset_list_combo.setCurrentIndex(0)
             self.on_asset_changed(0)
         else:
+            self.current_asset_id = None
+            self.asset_info_label.clear()
+            self.asset_info_label.setVisible(False)
             self.items_table.setRowCount(0)
 
     def on_asset_changed(self, index):
-        self.current_asset_id = self.asset_list_combo.itemData(index)
+        asset = self.asset_list_combo.itemData(index)
+        self.current_asset_id = asset.get('id') if isinstance(asset, dict) else None
+        if isinstance(asset, dict):
+            self.asset_info_label.setText(
+                f"型号/版本：{asset.get('model', '') or '-'}    IP地址：{asset.get('ip', '') or '-'}"
+            )
+            self.asset_info_label.setVisible(True)
+        else:
+            self.asset_info_label.clear()
+            self.asset_info_label.setVisible(False)
         self.refresh_items_table()
 
     def add_asset(self):
@@ -412,10 +442,29 @@ class ProjectWindow(QWidget):
 
     def delete_asset(self):
         if self.asset_list_combo.count() == 0: return
-        aid = self.asset_list_combo.currentData()
+        asset = self.asset_list_combo.currentData()
+        aid = asset.get('id') if isinstance(asset, dict) else None
+        if not aid: return
         if QMessageBox.question(self, "确认", "删除资产及记录？") == QMessageBox.StandardButton.Yes:
             db.remove_asset_from_project(self.project_id, aid)
             self.load_assets()
+
+    def edit_asset(self):
+        asset = self.asset_list_combo.currentData()
+        if not isinstance(asset, dict):
+            return
+
+        dialog = AddAssetDialog(self.project_level, self, asset_data=asset, is_edit=True)
+        if dialog.exec():
+            name, model, ip, _ = dialog.get_data()
+            if not name:
+                QMessageBox.warning(self, "保存失败", "资产名称不能为空")
+                return
+            success, msg = db.update_project_asset(self.project_id, asset.get('id'), name, model, ip)
+            if success:
+                self.load_assets()
+            else:
+                QMessageBox.warning(self, "保存失败", msg)
 
     def show_category_menu(self, pos):
         item = self.left_sidebar.itemAt(pos)
